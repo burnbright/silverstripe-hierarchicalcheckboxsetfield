@@ -1,4 +1,4 @@
-# Hierarchial Checkbox Set Field
+# Hierarchical Checkbox Set Field
 
 This field will produce a set of nested checkboxes.
 
@@ -11,7 +11,7 @@ The values can be a be an array or a string.
 ```php
 
 
-$field = HierarchialCheckboxSetField::create("Pages", "Pages", 
+$field = HierarchicalCheckboxSetField::create("Pages", "Pages", 
 	Page::get()
 		->filter("ParentID", 0),
 	"Children",

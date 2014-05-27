@@ -1,9 +1,8 @@
 <?php
 /**
- * Hierarchial Checkbox Set Field
- * 
+ * Hierarchical Checkbox Set Field
  */
-class HierarchialCheckboxSetField extends CheckboxSetField {
+class HierarchicalCheckboxSetField extends CheckboxSetField {
 	
 	protected $childsource, $childFilter = null;
 	
@@ -163,7 +162,7 @@ class HierarchialCheckboxSetField extends CheckboxSetField {
 	
 	
 	/**
-	 * Return the HierarchialCheckboxSetField value as an string 
+	 * Return the HierarchicalCheckboxSetField value as an string 
 	 * selected item keys, with sub arrays in square brackets.
 	 * 
 	 * TODO: would this be better as JSON, or some specific format?
