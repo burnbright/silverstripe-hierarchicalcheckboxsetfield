@@ -21,5 +21,7 @@ $field = HierarchicalCheckboxSetField::create("Pages", "Pages",
 		->map('ID','ID')
 		->toArray()
 );
+$field->setChildSort("Title DESC");
+$field->setChildFilter("ShowInSearch = 1");
 
 ```
