@@ -1,30 +1,32 @@
 <?php
+
 /**
  * Hierarchical Checkbox Set Field
  */
 class HierarchicalCheckboxSetField extends CheckboxSetField {
 	
-	protected $childsource, $childFilter = null;
-	
+	protected $childsource;
+	protected $childfilter = null;
+	protected $childsort = null;
 	protected $disableparentswithchildren = false;
 	
-	function __construct($name, $title = "", $source = array(), $childsource = null , $value = "", $form = null, $childFilter = null) {
+	function __construct($name, $title = "", $source = array(), $childsource = null , $value = "", $form = null, $childfilter = null) {
 		parent::__construct($name, $title, $source, $value, $form);
 		
 		$this->childsource = $childsource;
-		$this->childFilter = $childFilter;
+		$this->childfilter = $childfilter;
 	}
 	
 	/**
 	 * @todo Explain different source data that can be used with this field,
 	 * e.g. SQLMap, DataObjectSet or an array.
-	 * 
-	 * @todo Should use CheckboxField FieldHolder rather than constructing own markup.
 	 */
-	function Field($properties = array()) {
+	public function Field($properties = array()) {
 		Requirements::css(FRAMEWORK_DIR . '/css/CheckboxSetField.css');
+
 		$source = $this->source;
 		$values = $this->value;
+
 		// Get values from the join, if available
 		if(is_object($this->form)) {
 			$record = $this->form->getRecord();
@@ -38,97 +40,140 @@ class HierarchicalCheckboxSetField extends CheckboxSetField {
 				}
 			}
 		}
+
+		$items = array();
 		// Source is not an array
 		if(!is_array($source) && !is_a($source, 'SQLMap')) {
 			if(is_array($values)) {
 				$items = $values;
 			} else {
 				// Source and values are DataObject sets.
-				if($values && is_a($values, 'DataObjectSet')) {
+				if($values && is_a($values, 'SS_List')) {
 					foreach($values as $object) {
 						if(is_a($object, 'DataObject')) {
 							$items[] = $object->ID;
 						}
-				   }
+					}
 				} elseif($values && is_string($values)) {
 					$items = explode(',', $values);
 					$items = str_replace('{comma}', ',', $items);
 				}
 			}
 		} else {
-			// Sometimes we pass a singluar default value thats ! an array && !DataObjectSet
-			if(is_a($values, 'DataObjectSet') || is_array($values)) {
+			// Sometimes we pass a singluar default value thats ! an array && !SS_List
+			if($values instanceof SS_List || is_array($values)) {
 				$items = $values;
 			} else {
-				$items = explode(',', $values);
-				$items = str_replace('{comma}', ',', $items);
+				if($values === null) {
+					$items = array();
+				}
+				else {
+					$items = explode(',', $values);
+					$items = str_replace('{comma}', ',', $items);
+				}
 			}
 		}
+			
 		if(is_array($source)) {
 			unset($source['']);
 		}
-		$odd = 0;
-		$options = '';
-		if ($source == null) {
-			$source = array();
-			$options = "<li>No options available</li>";
-		}
-		foreach($source as $index => $item) {
-			if(is_a($item, 'DataObject')) {
-				$key = $item->ID;
-				$value = $item->Title;
-			} else {
-				$key = $index;
-				$value = $item;
-			}
-			$odd = ($odd + 1) % 2;
-			$extraClass = $odd ? 'odd' : 'even';
-			$extraClass .= ' val' . str_replace(' ', '', $key);
-			$itemID = $this->id() . '_' . preg_replace('/[^a-zA-Z0-9]+/', '', $key);
-			$checked = isset($items) && in_array($key, $items) ? ' checked="checked"' : '';
-			$disabled = ($this->disabled) ? $disabled = ' disabled="disabled"' : '';
-			$subboxes = ($this->childsource) ? $this->getSubBoxes($item) : false;
-			$input = $this->disableparentswithchildren && $subboxes ? "" :
-				"<input id=\"$itemID\" name=\"$this->name[$key]\" type=\"checkbox\" value=\"$key\"$checked $disabled class=\"checkbox\" />";
-			$options .= "<li class=\"$extraClass\">$input <label for=\"$itemID\">$value</label>$subboxes</li>\n"; 
-		}
 		
-		return "<ul id=\"{$this->id()}\" class=\"optionset checkboxsetfield{$this->extraClass()}\">\n$options</ul>\n"; 
+		$odd = 0;
+		$options = array();
+		
+		if ($source == null) $source = array();
+
+		if($source) {
+			foreach($source as $value => $item) {
+				if($item instanceof DataObject) {
+					$value = $item->ID;
+					$title = $item->Title;
+				} else {
+					$title = $item;
+				}
+
+				$itemID = $this->getItemHTMLID($value);
+				$odd = ($odd + 1) % 2;
+				$extraClass = $odd ? 'odd' : 'even';
+				$extraClass .= ' val' . preg_replace('/[^a-zA-Z0-9\-\_]/', '_', $value);
+
+				$data = array(
+					'ID' => $itemID,
+					'Class' => $extraClass,
+					'Name' => "{$this->name}[{$value}]",
+					'Value' => $value,
+					'Title' => $title,
+					'isChecked' => in_array($value, $items) || in_array($value, $this->defaultItems),
+					'isDisabled' => $this->disabled || in_array($value, $this->disabledItems)
+				);
+
+				if($children = $this->getChildOptions($item)){
+					$data['HasChildren'] = true;
+					$data['ChildOptions'] = $children;
+				}
+
+				$options[] = new ArrayData($data);
+			}
+		}
+		$properties = array_merge($properties, array('Options' => new ArrayList($options)));
+
+		return $this->customise($properties)->renderWith($this->getTemplates());
 	}
-	
-	/**
-	 * Helper method to get the sub boxes using $this->childsource to reference the child DataObject field.
-	 */
-	function getSubBoxes($item){
+
+	function getChildOptions($item){
 		if(!is_a($item, 'DataObject')) {
 			return false;
 		}
-		$key = $item->ID;
 		$output = '';
-
 		$children = $item->{$this->childsource}();
-		if($this->childFilter) {
-			$children = $children->where($this->childFilter);
+		if($this->childfilter) {
+			$children = $children->where($this->childfilter);
 		}
 		if(!$children->exists()) {
 			return false;
 		}
-		foreach($children as $do) {
-			$itemID = $this->id() . '_'.$item->ID."_".$do->ID;
-			$title = $do->Title;
-			$value = $do->ID;
-			$name = "$this->name[$key][$value]";
-			$disabled = ''; //TODO: allow disabled support
-			$checked = in_array($key, $this->value) ? ' checked="checked"' : '';
-			$input = "<input id=\"$itemID\" name=\"$name\" type=\"checkbox\" value=\"$value\"$checked $disabled class=\"checkbox\" />";
-			$output .= "<li>$input <label for=\"$itemID\">$title</label></li>";
+		if($this->childsort){
+			$children = $children->sort($this->childsort);
+		}
+		$options = array();
+		foreach($children as $item) {
+			$title = $item->Title;
+			$value = $item->ID;
+			$data = array(
+				'ID' => $this->getItemHTMLID($item->ID),
+				'Class' => '',//$extraClass,
+				'Name' => "{$this->name}[{$value}]",
+				'Value' => $item->ID,
+				'Title' => $title,
+				'isChecked' => in_array($item->ID, $this->value) || in_array($item->ID, $this->defaultItems),
+				'isDisabled' => $this->disabled || in_array($value, $this->disabledItems)
+			);
+			$options[] = new ArrayData($data);
 		}
 			
-		return "<ul>$output</ul>";
+		return new ArrayList($options);
 	}
 	
+	protected function getItemHTMLID($id) {
+		return $this->ID() . '_' . preg_replace('/[^a-zA-Z0-9]/', '', $id);
+	}
+
 	function disableParentsWithChildren($setting = true){
 		$this->disableparentswithchildren = $setting;
+
+		return $this;
+	}
+
+	function setChildFilter($filter) {
+		$this->childfilter = $filter;
+
+		return $this;
+	}
+
+	function setChildSort($sort) {
+		$this->childsort = $sort;
+
+		return $this;
 	}
 	
 	/**
@@ -160,15 +205,12 @@ class HierarchicalCheckboxSetField extends CheckboxSetField {
 		}
 	}
 	
-	
 	/**
 	 * Return the HierarchicalCheckboxSetField value as an string 
 	 * selected item keys, with sub arrays in square brackets.
 	 * 
 	 * TODO: would this be better as JSON, or some specific format?
-	 * 
 	 * current format: 1,2,3[2,3,4,6],3,5[3,23],4
-	 * 
 	 * JSON: 1,2,3,4,5:{3,5,6}
 	 * 
 	 * @return string
@@ -194,10 +236,9 @@ class HierarchicalCheckboxSetField extends CheckboxSetField {
 				$filtered[] = str_replace(",", "{comma}", $item);
 			}
 		}
+
 		return implode(',', $filtered);
 	}
-	
-	
 	
 	/**
 	 * Transforms the source data for this CheckboxSetField
@@ -208,7 +249,6 @@ class HierarchicalCheckboxSetField extends CheckboxSetField {
 	function performReadonlyTransformation() {
 		$values = '';
 		$data = array();
-		
 		$items = $this->value;
 		if($this->source) {
 			foreach($this->source as $source) {
@@ -217,21 +257,20 @@ class HierarchicalCheckboxSetField extends CheckboxSetField {
 				}
 			}
 		}
-		
 		if($items) {
 			// Items is a DO Set
 			if(is_a($items, 'DataObjectSet')) {
 				foreach($items as $item) {
 					$data[] = $item->Title;
 				}
-				if($data) $values = implode(', ', $data);
-				
+				if($data){
+					$values = implode(', ', $data);	
+				}
 			// Items is an array or single piece of string (including comma seperated string)
 			} else {
 				if(!is_array($items)) {
 					$items = split(' *, *', trim($items));
 				}
-				
 				foreach($items as $item) {
 					if(is_array($item) && isset($item['Title'])) {
 						$data[] = $item['Title'];
@@ -245,13 +284,10 @@ class HierarchicalCheckboxSetField extends CheckboxSetField {
 						$data[] = $item;
 					}
 				}
-				
 				$values = implode(', ', $data);
 			}
 		}
-		
 		$title = ($this->title) ? $this->title : '';
-		
 		$field = new ReadonlyField($this->name, $title, $values);
 		$field->setForm($this->form);
 		
