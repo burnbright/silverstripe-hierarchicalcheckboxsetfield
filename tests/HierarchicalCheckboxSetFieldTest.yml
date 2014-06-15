@@ -1,0 +1,22 @@
+HierarchicalCheckboxSetFieldTest_Article:
+  first:
+    Checked: 1
+    Sort: 1
+  second:
+    Checked: 0
+    Sort: 2
+  third:
+    Checked: 1
+    Sort: 3
+  first_first:
+    Checked: 1
+    Sort: 1
+    Parent: =>HierarchicalCheckboxSetFieldTest_Article.first
+  first_second:
+    Checked: 0
+    Sort: 2
+    Parent: =>HierarchicalCheckboxSetFieldTest_Article.first
+  second_first:
+    Checked: 0
+    Sort: 3
+    Parent: =>HierarchicalCheckboxSetFieldTest_Article.second

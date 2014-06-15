@@ -74,14 +74,10 @@ class HierarchicalCheckboxSetField extends CheckboxSetField {
 			}
 		}
 			
-		if(is_array($source)) {
-			unset($source['']);
-		}
-		
 		$odd = 0;
 		$options = array();
-		
-		if ($source == null) $source = array();
+
+		$source = $this->getSourceItems();
 
 		if($source) {
 			foreach($source as $value => $item) {
@@ -121,7 +117,7 @@ class HierarchicalCheckboxSetField extends CheckboxSetField {
 	}
 
 	function getChildOptions($item){
-		if(!is_a($item, 'DataObject')) {
+		if(!is_a($item, 'DataObject') || !$this->childsource) {
 			return false;
 		}
 		$output = '';
@@ -135,6 +131,8 @@ class HierarchicalCheckboxSetField extends CheckboxSetField {
 		if($this->childsort){
 			$children = $children->sort($this->childsort);
 		}
+		$values = $this->getValueIDs();
+
 		$options = array();
 		foreach($children as $item) {
 			$title = $item->Title;
@@ -145,13 +143,49 @@ class HierarchicalCheckboxSetField extends CheckboxSetField {
 				'Name' => "{$this->name}[{$value}]",
 				'Value' => $item->ID,
 				'Title' => $title,
-				'isChecked' => in_array($item->ID, $this->value) || in_array($item->ID, $this->defaultItems),
+				'isChecked' => in_array($item->ID, $values) || in_array($item->ID, $this->defaultItems),
 				'isDisabled' => $this->disabled || in_array($value, $this->disabledItems)
 			);
 			$options[] = new ArrayData($data);
 		}
 			
 		return new ArrayList($options);
+	}
+
+	protected function getSourceItems() {
+		$source = $this->source;
+		if(is_array($source)) {
+			unset($source['']);
+		}
+		if($source == null){
+			$source = array();
+		}
+
+		return $source;
+	}
+
+	protected function getValueIDs() {
+		$values = $this->value;
+
+		//get value from record relation, if possible
+
+		if($values && is_a($values, 'SS_List')) {
+			$ids = array();
+			foreach($values as $object) {
+				if(is_a($object, 'DataObject')) {
+					$ids[] = $object->ID;
+				}
+			}
+			return $ids;
+		}
+		if(is_array($values)){
+			return $values;
+		}
+		if(is_string($values)){
+			return explode(",", $values);
+		}
+
+		return array($values);
 	}
 	
 	protected function getItemHTMLID($id) {
