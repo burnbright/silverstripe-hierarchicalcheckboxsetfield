@@ -133,6 +133,8 @@ class HierarchicalCheckboxSetField extends CheckboxSetField {
 		}
 		$values = $this->getValueIDs();
 
+		$parentid = $item->ID;
+
 		$options = array();
 		foreach($children as $item) {
 			$title = $item->Title;
@@ -140,7 +142,7 @@ class HierarchicalCheckboxSetField extends CheckboxSetField {
 			$data = array(
 				'ID' => $this->getItemHTMLID($item->ID),
 				'Class' => '',//$extraClass,
-				'Name' => "{$this->name}[{$value}]",
+				'Name' => "{$this->name}[{$parentid}][{$value}]",
 				'Value' => $item->ID,
 				'Title' => $title,
 				'isChecked' => in_array($item->ID, $values) || in_array($item->ID, $this->defaultItems),
